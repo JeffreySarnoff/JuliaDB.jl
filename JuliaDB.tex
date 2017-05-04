@@ -1,0 +1,923 @@
+\documentclass{memoir}
+
+\usepackage{./documenter}
+\usepackage{./custom}
+
+\title{JuliaDB}
+\author{}
+
+\begin{document}
+
+\frontmatter
+\maketitle
+\tableofcontents
+
+\mainmatter
+
+
+
+\part{Introduction}
+
+
+
+
+\hypertarget{8567594541938070074}{}
+
+
+\chapter{JuliaDB.jl}
+
+
+
+\hypertarget{1191680443471067081}{}
+
+
+\section{Overview}
+
+
+
+The JuliaDB package provides a distributed table data structure where some of the columns form a sorted index. This structure is equivalent to an N-dimensional sparse array, and follows the array API to the extent possible. While a table data structure provided by JuliaDB can be used for any kind of array data, it is highly efficient at the storage and querying of data sets whose indices have a natural sorted order, such as time-series data.
+
+
+
+The JuliaDB package provides functionality for ingesting data from a variety of data sources, and provides full integration with the rest of the Julia language ecosystem for performing analytics directly on data stored within a JuliaDB table using many Julia processes.
+
+
+
+\hypertarget{14749083378597845891}{}
+
+
+\section{Installation}
+
+
+
+
+\begin{minted}{julia}
+Pkg.clone("https://github.com/JuliaComputing/JuliaDB.jl.git")
+\end{minted}
+
+
+
+\hypertarget{11016140136578384351}{}
+
+
+\section{Introduction}
+
+
+
+The data structure (called \texttt{DTable}) provided by this package maps tuples of indices to data values.   Hence, it is similar to a hash table mapping tuples to values, but with a few key differences. First, the index tuples are stored columnwise, with one vector per index position: there is a vector of first indices, a vector of second indices, and so on. The index vectors are expected to be homogeneous to allow more efficient storage. Second, the indices must have a total order, and are stored lexicographically sorted (first by the first index, then by the second index, and so on, left-to-right). While the indices must have totally-ordered types, the data values can be anything. Finally, for purposes of many operations an \texttt{DTable} acts like an N-dimensional array of its data values, where the number of dimensions is the number of index columns.  A \texttt{DTable} implements a distributed memory version of the \texttt{IndexedTable} data structure provided by the \texttt{IndexedTables.jl} package and re-exported by JuliaDB.
+
+
+
+\part{Tutorial}
+
+
+
+
+\hypertarget{17352761750160139593}{}
+
+
+\chapter{Using JuliaDB}
+
+
+
+\hypertarget{3131906217985619023}{}
+
+
+\section{Construction of an IndexedTable}
+
+
+
+The \texttt{IndexedTable} constructor accepts a series of vectors. The last vector contains the data values, and the first N vectors contain the indices for each of the N dimensions. As an example, let{\textquotesingle}s construct an array of the high temperatures for three days in two cities:
+
+
+
+
+\begin{minted}{julia}
+julia> using IndexedTables, JuliaDB
+
+julia> hitemps = IndexedTable([fill("New York",3); fill("Boston",3)],
+                              repmat(Date(2016,7,6):Date(2016,7,8), 2),
+                              [91,89,91,95,83,76])
+───────────────────────┬───
+"Boston"    2016-07-06 │ 95
+"Boston"    2016-07-07 │ 83
+"Boston"    2016-07-08 │ 76
+"New York"  2016-07-06 │ 91
+"New York"  2016-07-07 │ 89
+"New York"  2016-07-08 │ 91
+\end{minted}
+
+
+
+Notice that the data was sorted first by city name, then date, giving a different order than we initially provided. On construction, \texttt{IndexedTable} takes ownership of the columns and sorts them in place (the original vectors are modified).
+
+
+
+\hypertarget{13986053725508188414}{}
+
+
+\section{Conversion of a Local IndexedTable to a distributed JuliaDB Table}
+
+
+
+One can convert an existing \texttt{IndexedTable} to a JuliaDB \texttt{DTable} through the use of the \texttt{distribute} function.
+
+
+
+
+\begin{minted}{julia}
+julia> dhitemps = distribute(hitemps, 2)
+DTable with 6 rows in 2 chunks:
+
+───────────────────────┬───
+"Boston"    2016-07-06 │ 95
+"Boston"    2016-07-07 │ 83
+"Boston"    2016-07-08 │ 76
+"New York"  2016-07-06 │ 91
+"New York"  2016-07-07 │ 89
+...
+\end{minted}
+
+
+
+The first argument provided to \texttt{distribute} is an existing \texttt{IndexedTable} and the second argument describes how the indexed table should be distributed amongst worker processes.  If the second argument is a scalar of value \texttt{n}, then the \texttt{IndexedTable} will be split into \texttt{n} approximately equal chunks across the worker processes.  If the second argument is a vector of n integers, then the distributed table with n separate chunks with each chunk having the number of rows present in each element of that vector.
+
+
+
+\hypertarget{6968342998374166473}{}
+
+
+\section{Importing data}
+
+
+
+\hypertarget{11807903355386203129}{}
+
+
+\subsection{Reading from CSV files}
+
+
+
+Importing data from column-based sources is straightforward.  JuliaDB currently provides two distinct methods for importing data: \texttt{loadfiles} and \texttt{ingest}.  Both functions load the contents of one or more CSV files in a given directory and return a \texttt{DTable} of the loaded data.  The \texttt{ingest} function has the additional property of transforming the data into an efficient internal storage format, and saving both the original data and associated JuliaDB metadata to disk in a provided output directory.
+
+
+
+The argument signature and help for \texttt{ingest} is the following:
+
+
+\hypertarget{16292330238115158688}{} 
+\hyperlink{16292330238115158688}{\texttt{JuliaDB.ingest}}  -- {Function.}
+
+\begin{adjustwidth}{2em}{0pt}
+
+
+\begin{lstlisting}
+ingest(files::Union{AbstractVector,String}, outputdir::AbstractString; <options>...)
+\end{lstlisting}
+
+ingests data from CSV files into JuliaDB. Stores the metadata and index in a directory \texttt{outputdir}. Creates \texttt{outputdir} if it doesn{\textquotesingle}t exist.
+
+\textbf{Arguments:}
+
+\begin{itemize}
+\item \texttt{delim::Char}: the delimiter to use to read the text file with data. defaults to \texttt{,}
+
+
+\item \texttt{indexcols::AbstractArray}: columns that are meant to act as the index for the table.  Defaults to all but the last column. If \texttt{datacols} is set, defaults to all  columns other than the data columns. If \texttt{indexcols} is an empty vector,  an implicit index of itegers \texttt{1:n} is added to the data.
+
+
+\item \texttt{datacols::AbstractArray}: columns that are meant to act as the data for the table.  Defaults to the last column. If \texttt{indexcols} is set, defaults to all  columns other than the index columns.
+
+
+\item \texttt{agg::Function}: aggregation function to use to combine data points with the same index. Defaults to nothing which leaves the data unaggregated (see \href{apireference.html\#IndexedTables.aggregate-Tuple\{Any,JuliaDB.DTable\}}{\texttt{aggregate}} to aggregate post-loading)).  table.)
+
+
+\item \texttt{presorted::Bool}: specifies if each CSV file is internally already sorted according  to the specified index column. This will avoid a re-sorting.
+
+
+\item \texttt{tomemory::Bool}: Load data to memory after ingesting instead of mmapping. Defaults to false.
+
+
+\item The rest of the keyword arguments will be passed on to \href{@ref}{\texttt{TextParse.csvread}} which is used by this function to load data from individual files.
+
+\end{itemize}
+See also \href{tutorial.html\#JuliaDB.loadfiles}{\texttt{loadfiles}} and \href{tutorial.html\#JuliaDB.save}{\texttt{save}}
+
+
+
+\href{https://github.com/JuliaComputing/JuliaDB.jl/tree/9e65f8c3b0e9c2e27c3334a093a5aefc6c7d1246/src/ingest.jl#L5-L29}{\texttt{source}}
+
+
+\end{adjustwidth}
+
+The argument signature and help for \texttt{loadfiles} is the following:
+
+
+\hypertarget{6091781697516830686}{} 
+\hyperlink{6091781697516830686}{\texttt{JuliaDB.loadfiles}}  -- {Function.}
+
+\begin{adjustwidth}{2em}{0pt}
+
+
+\begin{lstlisting}
+loadfiles(files::Union{AbstractVector,String}, delim = ','; <options>)
+\end{lstlisting}
+
+Load a collection of CSV \texttt{files} into a DTable, where \texttt{files} is either a vector of file paths, or the path of a directory containing files to load.
+
+\textbf{Arguments:}
+
+\begin{itemize}
+\item \texttt{usecache::Bool}: use cached metadata from previous loads while loading the files. Set this to \texttt{false} if you are changing other options.
+
+\end{itemize}
+All other arguments options are the same as those listed in \href{tutorial.html\#JuliaDB.ingest}{\texttt{ingest}}.
+
+See also \href{tutorial.html\#JuliaDB.ingest}{\texttt{ingest}}.
+
+
+
+\href{https://github.com/JuliaComputing/JuliaDB.jl/tree/9e65f8c3b0e9c2e27c3334a093a5aefc6c7d1246/src/loadfiles.jl#L31-L44}{\texttt{source}}
+
+
+\end{adjustwidth}
+
+As stated above in the help text, each function has a set of optional input arguments that are specific to that particular function, as well as the ability to pass a set of trailing input arguments that are subsequently passed on to \href{https://juliacomputing.com/TextParse.jl/stable/index.html\#TextParse.csvread}{\texttt{TextParse.csvread}}.
+
+
+
+An in-place variant of the \texttt{ingest!} function will append data from new files on to an existing \texttt{DTable} stored in a defined \texttt{outputdir}.  The help string for the in-place version of \texttt{ingest!} is the following:
+
+
+\hypertarget{16413497473699948223}{} 
+\hyperlink{16413497473699948223}{\texttt{JuliaDB.ingest!}}  -- {Function.}
+
+\begin{adjustwidth}{2em}{0pt}
+
+
+\begin{lstlisting}
+ingest!(files::Union{AbstractVector,String}, outputdir::AbstractString; <options>...)
+\end{lstlisting}
+
+ingest data from \texttt{files} and append into data stored in \texttt{outputdir}. Creates \texttt{outputdir} if it doesn{\textquotesingle}t exist. Arguments are the same as those to \href{@ref}{ingest}. The index range of data in the new files should not overlap with files previously ingested.
+
+See also \href{@ingest}{\texttt{ingest}}
+
+
+
+\href{https://github.com/JuliaComputing/JuliaDB.jl/tree/9e65f8c3b0e9c2e27c3334a093a5aefc6c7d1246/src/ingest.jl#L42-L50}{\texttt{source}}
+
+
+\end{adjustwidth}
+
+\hypertarget{14624391558619037012}{}
+
+
+\subsection{Saving and Loading existing JuliaDB DTables}
+
+
+
+Saving an existing \texttt{DTable} can be accomplished through the use of the \texttt{save} function.  The \texttt{save} function has the following help string:
+
+
+\hypertarget{3464975534109264419}{} 
+\hyperlink{3464975534109264419}{\texttt{JuliaDB.save}}  -- {Function.}
+
+\begin{adjustwidth}{2em}{0pt}
+
+
+\begin{lstlisting}
+save(t::DTable, outputdir::AbstractString)
+\end{lstlisting}
+
+Saves a \texttt{DTable} to disk. This function blocks till all files data has been computed and saved. Saved data can be loaded with \texttt{load}.
+
+See also \href{tutorial.html\#JuliaDB.ingest}{\texttt{ingest}}, \href{tutorial.html\#JuliaDB.load}{\texttt{load}}
+
+
+
+\href{https://github.com/JuliaComputing/JuliaDB.jl/tree/9e65f8c3b0e9c2e27c3334a093a5aefc6c7d1246/src/ingest.jl#L158-L166}{\texttt{source}}
+
+
+\end{adjustwidth}
+
+Loading a previously saved \texttt{DTable} from disk can be accomplished through use of the \texttt{load} function.  The \texttt{load} function has the following help string:
+
+
+\hypertarget{13696004921527687886}{} 
+\hyperlink{13696004921527687886}{\texttt{JuliaDB.load}}  -- {Function.}
+
+\begin{adjustwidth}{2em}{0pt}
+
+
+\begin{lstlisting}
+load(dir::AbstractString; tomemory)
+\end{lstlisting}
+
+Load a saved \texttt{DTable} from \texttt{dir} directory. Data can be saved using \texttt{ingest} or \texttt{save} functions. If \texttt{tomemory} option is true, then data is loaded into memory rather than mmapped.
+
+See also \href{tutorial.html\#JuliaDB.ingest}{\texttt{ingest}}, \href{tutorial.html\#JuliaDB.save}{\texttt{save}}
+
+
+
+\href{https://github.com/JuliaComputing/JuliaDB.jl/tree/9e65f8c3b0e9c2e27c3334a093a5aefc6c7d1246/src/ingest.jl#L139-L147}{\texttt{source}}
+
+
+\end{adjustwidth}
+
+\hypertarget{14566118977838625303}{}
+
+
+\section{Indexing}
+
+
+
+Most lookup and filtering operations on \texttt{DTable} are done via indexing. Our \texttt{dhitemps} array behaves like a 2-d array of integers, accepting two indices:
+
+
+
+
+\begin{minted}{julia}
+julia> dhitemps["Boston", Date(2016,7,8)]
+76
+\end{minted}
+
+
+
+If the given indices exactly match the element types of the index columns, then the result is a scalar. In other cases, a new \texttt{DTable} is returned, giving data for all matching locations:
+
+
+
+
+\begin{minted}{julia}
+julia> dhitemps["Boston", :]
+DTable with 1 chunks:
+
+─────────────────────┬───
+"Boston"  2016-07-06 │ 95
+"Boston"  2016-07-07 │ 83
+"Boston"  2016-07-08 │ 76
+...
+\end{minted}
+
+
+
+\hypertarget{10652689425744280248}{}
+
+
+\section{Permuting dimensions}
+
+
+
+As with other multi-dimensional arrays, dimensions can be permuted to change the sort order. With \texttt{DTable} the interpretation of this operation is especially natural: simply imagine passing the index columns to the constructor in a different order, and repeating the sorting process:
+
+
+
+
+\begin{minted}{julia}
+julia> permutedims(dhitemps, [2, 1])
+DTable with 2 chunks:
+
+───────────────────────┬───
+2016-07-06  "Boston"   │ 95
+2016-07-06  "New York" │ 91
+2016-07-07  "Boston"   │ 83
+2016-07-07  "New York" │ 89
+2016-07-08  "Boston"   │ 76
+...
+\end{minted}
+
+
+
+Now the data is sorted first by date. In some cases such dimension permutations are needed for performance. The leftmost column is esssentially the primary key –- indexing is fastest in this dimension.
+
+
+
+\hypertarget{8969345596108613746}{}
+
+
+\section{Select and aggregate}
+
+
+
+In some cases one wants to consider a subset of dimensions, for example when producing a simplified summary of data. This can be done by passing dimension (column) numbers (or names, as symbols) to \texttt{select}:
+
+
+
+
+\begin{minted}{julia}
+julia> select(dhitemps, 2)
+DTable with 2 chunks:
+
+───────────┬───
+2016-07-06 │ 95
+2016-07-06 │ 91
+2016-07-07 │ 83
+2016-07-07 │ 89
+2016-07-08 │ 76
+...
+\end{minted}
+
+
+
+In this case, the result has multiple values for some indices, and so does not fully behave like a normal array anymore. Operations that might leave the array in such a state accept the keyword argument \texttt{agg}, a function to use to combine all values associated with the same indices:
+
+
+
+
+\begin{minted}{julia}
+julia> select(dhitemps, 2, agg=max)
+DTable with 2 chunks:
+
+───────────┬───
+2016-07-06 │ 95
+2016-07-07 │ 89
+2016-07-08 │ 91
+...
+\end{minted}
+
+
+
+The aggregation operation can also be done by itself, in-place, using the function \texttt{aggregate!}.
+
+
+
+\texttt{select} also supports filtering columns with arbitrary predicates, by passing \texttt{column=>predicate} pairs:
+
+
+
+
+\begin{minted}{julia}
+julia> select(dhitemps, 2=>Dates.isfriday)
+DTable with 2 chunks:
+
+───────────────────────┬───
+"Boston"    2016-07-08 │ 76
+"New York"  2016-07-08 │ 91
+...
+\end{minted}
+
+
+
+\hypertarget{2209212914089178720}{}
+
+
+\section{Converting dimensions}
+
+
+
+A location in the coordinate space of an array often has multiple possible descriptions. This is especially common when describing data at different levels of detail. For example, a point in time can be expressed at the level of seconds, minutes, or hours. In our toy temperature dataset, we might want to look at monthly instead of daily highs.
+
+
+
+This can be accomplished using the \texttt{convertdim} function. It accepts a DTable, a dimension number to convert, a function or dictionary to apply to indices in that dimension, and an aggregation function (the aggregation function is needed in case the mapping is many-to-one). The following call therefore gives monthly high temperatures:
+
+
+
+
+\begin{minted}{julia}
+julia> convertdim(dhitemps, 2, Dates.month, agg=max)
+DTable with 2 chunks:
+
+──────────────┬───
+"Boston"    7 │ 95
+"New York"  7 │ 91
+...
+\end{minted}
+
+
+
+\hypertarget{8684275108712699203}{}
+
+
+\section{Named columns}
+
+
+
+\texttt{DTable} and \texttt{IndexedTable} are built on a simpler data structure called \texttt{Columns} that groups a set of vectors together. This structure is used to store the index part of an \texttt{IndexedTable}, and a \texttt{IndexedTable} can be constructed by passing one of these objects directly. \texttt{Columns} allows names to be associated with its constituent vectors. Together, these features allow \texttt{IndexedTable} and \texttt{DTable} arrays with named dimensions:
+
+
+
+
+\begin{minted}{julia}
+julia> hitemps = IndexedTable(Columns(city = [fill("New York",3); fill("Boston",3)],
+                                      date = repmat(Date(2016,7,6):Date(2016,7,8), 2)),
+                                      [91,89,91,95,83,76])
+city        date       │
+───────────────────────┼───
+"Boston"    2016-07-06 │ 95
+"Boston"    2016-07-07 │ 83
+"Boston"    2016-07-08 │ 76
+"New York"  2016-07-06 │ 91
+"New York"  2016-07-07 │ 89
+"New York"  2016-07-08 │ 91
+
+julia> dhitemps = distribute(hitemps,2)
+DTable with 6 rows in 2 chunks:
+
+city        date       │
+───────────────────────┼───
+"Boston"    2016-07-06 │ 95
+"Boston"    2016-07-07 │ 83
+"Boston"    2016-07-08 │ 76
+"New York"  2016-07-06 │ 91
+"New York"  2016-07-07 │ 89
+...
+\end{minted}
+
+
+
+Now dimensions (e.g. in \texttt{select} operations) can be identified by symbol (e.g. \texttt{:city}) as well as integer index.
+
+
+
+A \texttt{Columns} object itself behaves like a vector, and so can be used to represent the data part of a \texttt{DTable}. This provides one possible way to store multiple columns of data:
+
+
+
+
+\begin{minted}{julia}
+julia> t = IndexedTable(Columns(x = rand(4), y = rand(4)),
+                        Columns(observation = rand(1:2,4), confidence = rand(4)))
+x         y        │ observation  confidence
+───────────────────┼────────────────────────
+0.666683  0.193852 │ 2            0.707125
+0.668276  0.136898 │ 2            0.519529
+0.811008  0.511275 │ 2            0.0158134
+0.977066  0.895341 │ 2            0.57636
+
+julia> dt = distribute(t, 2)
+DTable with 4 rows in 2 chunks:
+
+x         y        │ observation  confidence
+───────────────────┼────────────────────────
+0.666683  0.193852 │ 2            0.707125
+0.668276  0.136898 │ 2            0.519529
+0.811008  0.511275 │ 2            0.0158134
+0.977066  0.895341 │ 2            0.57636
+\end{minted}
+
+
+
+In this case the data elements are structs with fields \texttt{observation} and \texttt{confidence}, and can be used as follows:
+
+
+
+
+\begin{minted}{julia}
+julia> filter(d->d.confidence > 0.5, dt)
+DTable with 2 chunks:
+
+x         y        │ observation  confidence
+───────────────────┼────────────────────────
+0.666683  0.193852 │ 2            0.707125
+0.668276  0.136898 │ 2            0.519529
+0.977066  0.895341 │ 2            0.57636
+...
+\end{minted}
+
+
+
+\part{API Reference}
+
+
+
+
+\hypertarget{15820397295884952734}{}
+
+
+\chapter{API documentation}
+
+
+
+\hypertarget{9625693945216481266}{}
+
+
+\section{Compute and gather}
+
+
+
+Operations in JuliaDB are out-of-core in nature. They return \texttt{DTable} objects which can contain parts that are not yet evaluated. \texttt{compute} and \texttt{gather} are ways to force evaluation.
+
+
+\hypertarget{13382488477989679622}{} 
+\hyperlink{13382488477989679622}{\texttt{Dagger.compute}}  -- {Method.}
+
+\begin{adjustwidth}{2em}{0pt}
+
+
+\begin{lstlisting}
+compute(t::DTable, allowoverlap=true)
+\end{lstlisting}
+
+Computes any delayed-evaluations in the \texttt{DTable}. The computed data is left on the worker processes. Subsequent operations on the results will reuse the chunks.
+
+If \texttt{allowoverlap} is false then the computed data is resorted to have no chunks with overlapping index ranges if necessary.
+
+If you expect the result of some operation to be used more than once, it{\textquotesingle}s better to compute it once and then use it many times.
+
+See also \href{apireference.html\#Dagger.gather-Tuple\{JuliaDB.DTable\}}{\texttt{gather}}.
+
+\begin{quote}
+\textbf{Warning}
+
+\texttt{compute(t)} requires at least as much memory as the size of the result of the computing \texttt{t}. If the result is expected to be big, try \texttt{compute(save(t, {\textquotedbl}output\_dir{\textquotedbl}))} instead. See \href{tutorial.html\#JuliaDB.save}{\texttt{save}} for more.
+
+\end{quote}
+
+
+\href{https://github.com/JuliaComputing/JuliaDB.jl/tree/9e65f8c3b0e9c2e27c3334a093a5aefc6c7d1246/src/dtable.jl#L42-L61}{\texttt{source}}
+
+
+\end{adjustwidth}
+\hypertarget{9294741057127988533}{} 
+\hyperlink{9294741057127988533}{\texttt{Dagger.gather}}  -- {Method.}
+
+\begin{adjustwidth}{2em}{0pt}
+
+
+\begin{lstlisting}
+gather(t::DTable)
+\end{lstlisting}
+
+Gets distributed data in a DTable \texttt{t} and merges it into \href{\#IndexedTables.IndexedTable}{IndexedTable} object
+
+\begin{quote}
+\textbf{Warning}
+
+\texttt{gather(t)} requires at least as much memory as the size of the result of the computing \texttt{t}. If the result is expected to be big, try \texttt{compute(save(t, {\textquotedbl}output\_dir{\textquotedbl}))} instead. See \href{tutorial.html\#JuliaDB.save}{\texttt{save}} for more. This data can be loaded later using \href{tutorial.html\#JuliaDB.load}{\texttt{load}}.
+
+\end{quote}
+
+
+\href{https://github.com/JuliaComputing/JuliaDB.jl/tree/9e65f8c3b0e9c2e27c3334a093a5aefc6c7d1246/src/dtable.jl#L77-L88}{\texttt{source}}
+
+
+\end{adjustwidth}
+
+\hypertarget{14566118977838625303}{}
+
+
+\section{Indexing}
+
+
+\hypertarget{10948394587154791156}{} 
+\hyperlink{10948394587154791156}{\texttt{Base.getindex}}  -- {Method.}
+
+\begin{adjustwidth}{2em}{0pt}
+
+
+\begin{lstlisting}
+t[idx...]
+\end{lstlisting}
+
+Returns a \texttt{DTable} containing only the elements of \texttt{t} where the given indices (\texttt{idx}) match. If \texttt{idx} has the same type as the index tuple of the \texttt{t}, then this is considered a scalar indexing (indexing of a single value). In this case the value itself is looked up and returned.
+
+
+
+\href{https://github.com/JuliaComputing/JuliaDB.jl/tree/9e65f8c3b0e9c2e27c3334a093a5aefc6c7d1246/src/indexing.jl#L2-L10}{\texttt{source}}
+
+
+\end{adjustwidth}
+
+\hypertarget{1042524252901497207}{}
+
+
+\section{Queries}
+
+
+\hypertarget{15191396688178857700}{} 
+\hyperlink{15191396688178857700}{\texttt{Base.Sort.select}}  -- {Method.}
+
+\begin{adjustwidth}{2em}{0pt}
+
+
+\begin{lstlisting}
+select(t::DTable, conditions::Pair...)
+\end{lstlisting}
+
+Filter based on index columns. Conditions are accepted as column-function pairs.
+
+Example: \texttt{select(t, 1 => x->x>10, 3 => x->x!=10 ...)}
+
+
+
+\href{https://github.com/JuliaComputing/JuliaDB.jl/tree/9e65f8c3b0e9c2e27c3334a093a5aefc6c7d1246/src/query.jl#L6-L12}{\texttt{source}}
+
+
+\end{adjustwidth}
+\hypertarget{3568968303749712889}{} 
+\hyperlink{3568968303749712889}{\texttt{Base.Sort.select}}  -- {Method.}
+
+\begin{adjustwidth}{2em}{0pt}
+
+
+\begin{lstlisting}
+select(t::DTable, which...; agg)
+\end{lstlisting}
+
+Returns a new DTable where only a subset of the index columns (specified by \texttt{which}) are kept.
+
+The \texttt{agg} keyword argument is a function which specifies how entries with equal indices should be aggregated. If \texttt{agg} is unspecified, then the repeating indices are kept in the output, you can then aggregate using \href{apireference.html\#IndexedTables.aggregate-Tuple\{Any,JuliaDB.DTable\}}{\texttt{aggregate}}
+
+
+
+\href{https://github.com/JuliaComputing/JuliaDB.jl/tree/9e65f8c3b0e9c2e27c3334a093a5aefc6c7d1246/src/query.jl#L17-L25}{\texttt{source}}
+
+
+\end{adjustwidth}
+\hypertarget{3546161945843634442}{} 
+\hyperlink{3546161945843634442}{\texttt{IndexedTables.aggregate}}  -- {Method.}
+
+\begin{adjustwidth}{2em}{0pt}
+
+
+\begin{lstlisting}
+aggregate(f, t::DTable)
+\end{lstlisting}
+
+Combines adjacent rows with equal indices using the given 2-argument reduction function \texttt{f}.
+
+
+
+\href{https://github.com/JuliaComputing/JuliaDB.jl/tree/9e65f8c3b0e9c2e27c3334a093a5aefc6c7d1246/src/query.jl#L50-L55}{\texttt{source}}
+
+
+\end{adjustwidth}
+\hypertarget{18013083123490576972}{} 
+\hyperlink{18013083123490576972}{\texttt{IndexedTables.aggregate\_vec}}  -- {Method.}
+
+\begin{adjustwidth}{2em}{0pt}
+
+
+\begin{lstlisting}
+aggregate_vec(f::Function, x::DTable)
+\end{lstlisting}
+
+Combine adjacent rows with equal indices using a function from vector to scalar, e.g. \texttt{mean}.
+
+
+
+\href{https://github.com/JuliaComputing/JuliaDB.jl/tree/9e65f8c3b0e9c2e27c3334a093a5aefc6c7d1246/src/query.jl#L64-L69}{\texttt{source}}
+
+
+\end{adjustwidth}
+\hypertarget{18191308245886912132}{} 
+\hyperlink{18191308245886912132}{\texttt{Base.filter}}  -- {Method.}
+
+\begin{adjustwidth}{2em}{0pt}
+
+
+\begin{lstlisting}
+filter(f, t::DTable)
+\end{lstlisting}
+
+Filters \texttt{t} removing rows for which \texttt{f} is false. \texttt{f} is passed only the data and not the index.
+
+
+
+\href{https://github.com/JuliaComputing/JuliaDB.jl/tree/9e65f8c3b0e9c2e27c3334a093a5aefc6c7d1246/src/query.jl#L78-L83}{\texttt{source}}
+
+
+\end{adjustwidth}
+\hypertarget{962396936399075086}{} 
+\hyperlink{962396936399075086}{\texttt{IndexedTables.convertdim}}  -- {Method.}
+
+\begin{adjustwidth}{2em}{0pt}
+
+
+\begin{lstlisting}
+convertdim(x::DTable, d::DimName, xlate; agg::Function, name)
+\end{lstlisting}
+
+Apply function or dictionary \texttt{xlate} to each index in the specified dimension. If the mapping is many-to-one, \texttt{agg} is used to aggregate the results. \texttt{name} optionally specifies a name for the new dimension. \texttt{xlate} must be a monotonically increasing function.
+
+See also \href{apireference.html\#Base.reducedim-Tuple\{Any,JuliaDB.DTable,Any\}}{\texttt{reducedim}} and \href{apireference.html\#IndexedTables.aggregate-Tuple\{Any,JuliaDB.DTable\}}{\texttt{aggregate}}
+
+
+
+\href{https://github.com/JuliaComputing/JuliaDB.jl/tree/9e65f8c3b0e9c2e27c3334a093a5aefc6c7d1246/src/query.jl#L88-L97}{\texttt{source}}
+
+
+\end{adjustwidth}
+\hypertarget{13741711985829965096}{} 
+\hyperlink{13741711985829965096}{\texttt{Base.reducedim}}  -- {Method.}
+
+\begin{adjustwidth}{2em}{0pt}
+
+
+\begin{lstlisting}
+reducedim(f, t::DTable, dims)
+\end{lstlisting}
+
+Remove \texttt{dims} dimensions from \texttt{t}, aggregate any rows with equal indices using 2-argument function \texttt{f}.
+
+See also \href{apireference.html\#IndexedTables.reducedim\_vec-Tuple\{Any,JuliaDB.DTable,Any\}}{\texttt{reducedim\_vec}}, \href{apireference.html\#Base.Sort.select-Tuple\{JuliaDB.DTable,Vararg\{Pair,N\}\}}{\texttt{select}} and \href{apireference.html\#IndexedTables.aggregate-Tuple\{Any,JuliaDB.DTable\}}{\texttt{aggregate}}.
+
+
+
+\href{https://github.com/JuliaComputing/JuliaDB.jl/tree/9e65f8c3b0e9c2e27c3334a093a5aefc6c7d1246/src/query.jl#L135-L142}{\texttt{source}}
+
+
+\end{adjustwidth}
+\hypertarget{12223450234186551969}{} 
+\hyperlink{12223450234186551969}{\texttt{IndexedTables.reducedim\_vec}}  -- {Method.}
+
+\begin{adjustwidth}{2em}{0pt}
+
+
+\begin{lstlisting}
+reducedim_vec(f::Function, t::DTable, dims)
+\end{lstlisting}
+
+Like \texttt{reducedim}, except uses a function mapping a vector of values to a scalar instead of a 2-argument scalar function.
+
+See also \href{apireference.html\#Base.reducedim-Tuple\{Any,JuliaDB.DTable,Any\}}{\texttt{reducedim}} and \href{apireference.html\#IndexedTables.aggregate\_vec-Tuple\{Any,JuliaDB.DTable\}}{\texttt{aggregate\_vec}}.
+
+
+
+\href{https://github.com/JuliaComputing/JuliaDB.jl/tree/9e65f8c3b0e9c2e27c3334a093a5aefc6c7d1246/src/query.jl#L153-L159}{\texttt{source}}
+
+
+\end{adjustwidth}
+
+\hypertarget{17547467198752541145}{}
+
+
+\section{Joins}
+
+
+\hypertarget{12660523155664088029}{} 
+\hyperlink{12660523155664088029}{\texttt{IndexedTables.naturaljoin}}  -- {Method.}
+
+\begin{adjustwidth}{2em}{0pt}
+
+
+\begin{lstlisting}
+naturaljoin(left::DTable, right::DTable, [op])
+\end{lstlisting}
+
+Returns a new \texttt{DTable} containing only rows where the indices are present both in \texttt{left} AND \texttt{right} tables. The data columns are concatenated.
+
+
+
+\href{https://github.com/JuliaComputing/JuliaDB.jl/tree/9e65f8c3b0e9c2e27c3334a093a5aefc6c7d1246/src/join.jl#L5-L10}{\texttt{source}}
+
+
+\end{adjustwidth}
+\hypertarget{16288860316829423119}{} 
+\hyperlink{16288860316829423119}{\texttt{IndexedTables.leftjoin}}  -- {Method.}
+
+\begin{adjustwidth}{2em}{0pt}
+
+
+\begin{lstlisting}
+leftjoin(left::DTable, right::DTable, [op::Function])
+\end{lstlisting}
+
+Keeps only rows with indices in \texttt{left}. If rows of the same index are present in \texttt{right}, then they are combined using \texttt{op}. \texttt{op} by default picks the value from \texttt{right}.
+
+
+
+\href{https://github.com/JuliaComputing/JuliaDB.jl/tree/9e65f8c3b0e9c2e27c3334a093a5aefc6c7d1246/src/join.jl#L84-L90}{\texttt{source}}
+
+
+\end{adjustwidth}
+\hypertarget{3261855016230238153}{} 
+\hyperlink{3261855016230238153}{\texttt{IndexedTables.asofjoin}}  -- {Method.}
+
+\begin{adjustwidth}{2em}{0pt}
+
+
+\begin{lstlisting}
+asofjoin(left::DTable, right::DTable)
+\end{lstlisting}
+
+Keeps the indices of \texttt{left} but uses the value from \texttt{right} corresponding to highest index less than or equal to that of left.
+
+
+
+\href{https://github.com/JuliaComputing/JuliaDB.jl/tree/9e65f8c3b0e9c2e27c3334a093a5aefc6c7d1246/src/join.jl#L127-L132}{\texttt{source}}
+
+
+\end{adjustwidth}
+\hypertarget{2455715143786975189}{} 
+\hyperlink{2455715143786975189}{\texttt{Base.merge}}  -- {Method.}
+
+\begin{adjustwidth}{2em}{0pt}
+
+
+\begin{lstlisting}
+merge(left::DTable, right::DTable; agg)
+\end{lstlisting}
+
+Merges \texttt{left} and \texttt{right} combining rows with matching indices using \texttt{agg}. By default \texttt{agg} picks the value from \texttt{right}.
+
+
+
+\href{https://github.com/JuliaComputing/JuliaDB.jl/tree/9e65f8c3b0e9c2e27c3334a093a5aefc6c7d1246/src/join.jl#L137-L142}{\texttt{source}}
+
+
+\end{adjustwidth}
+
+\end{document}
