@@ -1,2 +1,94 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Introduction · JuliaDB</title><link href="https://cdnjs.cloudflare.com/ajax/libs/normalize/4.2.0/normalize.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.5.0/styles/default.min.css" rel="stylesheet" type="text/css"/><link href="https://fonts.googleapis.com/css?family=Lato|Ubuntu+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.6.3/css/font-awesome.min.css" rel="stylesheet" type="text/css"/><link href="assets/documenter.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.2.0/require.min.js" data-main="assets/documenter.js"></script><script src="siteinfo.js"></script><script src="../versions.js"></script><link href="assets/jc.css" rel="stylesheet" type="text/css"/></head><body><nav class="toc"><h1>JuliaDB</h1><select id="version-selector" onChange="window.location.href=this.value" style="visibility: hidden"></select><form class="search" action="search.html"><input id="search-query" name="q" type="text" placeholder="Search docs"/></form><ul><li class="current"><a class="toctext" href="index.html">Introduction</a><ul class="internal"><li><a class="toctext" href="#Overview-1">Overview</a></li><li><a class="toctext" href="#Installation-1">Installation</a></li><li><a class="toctext" href="#Introduction-1">Introduction</a></li></ul></li><li><a class="toctext" href="tutorial.html">Tutorial</a></li><li><a class="toctext" href="apireference.html">API Reference</a></li></ul></nav><article id="docs"><header><nav><ul><li><a href="index.html">Introduction</a></li></ul><a class="edit-page" href="https://github.com/JuliaComputing/JuliaDB.jl/tree/9e65f8c3b0e9c2e27c3334a093a5aefc6c7d1246/docs/src/index.md"><span class="fa"></span> Edit on GitHub</a></nav><hr/></header><h1><a class="nav-anchor" id="JuliaDB.jl-1" href="#JuliaDB.jl-1">JuliaDB.jl</a></h1><h2><a class="nav-anchor" id="Overview-1" href="#Overview-1">Overview</a></h2><p>The JuliaDB package provides a distributed table data structure where some of the columns form a sorted index. This structure is equivalent to an N-dimensional sparse array, and follows the array API to the extent possible. While a table data structure provided by JuliaDB can be used for any kind of array data, it is highly efficient at the storage and querying of data sets whose indices have a natural sorted order, such as time-series data.</p><p>The JuliaDB package provides functionality for ingesting data from a variety of data sources, and provides full integration with the rest of the Julia language ecosystem for performing analytics directly on data stored within a JuliaDB table using many Julia processes.</p><h2><a class="nav-anchor" id="Installation-1" href="#Installation-1">Installation</a></h2><pre><code class="language-julia">Pkg.clone(&quot;https://github.com/JuliaComputing/JuliaDB.jl.git&quot;)</code></pre><h2><a class="nav-anchor" id="Introduction-1" href="#Introduction-1">Introduction</a></h2><p>The data structure (called <code>DTable</code>) provided by this package maps tuples of indices to data values.   Hence, it is similar to a hash table mapping tuples to values, but with a few key differences. First, the index tuples are stored columnwise, with one vector per index position: there is a vector of first indices, a vector of second indices, and so on. The index vectors are expected to be homogeneous to allow more efficient storage. Second, the indices must have a total order, and are stored lexicographically sorted (first by the first index, then by the second index, and so on, left-to-right). While the indices must have totally-ordered types, the data values can be anything. Finally, for purposes of many operations an <code>DTable</code> acts like an N-dimensional array of its data values, where the number of dimensions is the number of index columns.  A <code>DTable</code> implements a distributed memory version of the <code>IndexedTable</code> data structure provided by the <code>IndexedTables.jl</code> package and re-exported by JuliaDB.</p><footer><hr/><a class="next" href="tutorial.html"><span class="direction">Next</span><span class="title">Tutorial</span></a></footer></article></body></html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Introduction · JuliaDB</title><link href="https://cdnjs.cloudflare.com/ajax/libs/normalize/4.2.0/normalize.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.5.0/styles/default.min.css" rel="stylesheet" type="text/css"/><link href="https://fonts.googleapis.com/css?family=Lato|Ubuntu+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.6.3/css/font-awesome.min.css" rel="stylesheet" type="text/css"/><link href="assets/documenter.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.2.0/require.min.js" data-main="assets/documenter.js"></script><script src="siteinfo.js"></script><script src="../versions.js"></script><link href="assets/jc.css" rel="stylesheet" type="text/css"/></head><body><nav class="toc"><h1>JuliaDB</h1><select id="version-selector" onChange="window.location.href=this.value" style="visibility: hidden"></select><form class="search" action="search.html"><input id="search-query" name="q" type="text" placeholder="Search docs"/></form><ul><li class="current"><a class="toctext" href="index.html">Introduction</a><ul class="internal"><li><a class="toctext" href="#Overview-1">Overview</a></li><li><a class="toctext" href="#Installation-1">Installation</a></li><li><a class="toctext" href="#Loading-data-1">Loading data</a></li><li><a class="toctext" href="#Indexing-1">Indexing</a></li><li><a class="toctext" href="#Permuting-dimensions-1">Permuting dimensions</a></li><li><a class="toctext" href="#Select-and-aggregate-1">Select and aggregate</a></li><li><a class="toctext" href="#Converting-dimensions-1">Converting dimensions</a></li></ul></li><li><a class="toctext" href="apireference.html">API Reference</a></li></ul></nav><article id="docs"><header><nav><ul><li><a href="index.html">Introduction</a></li></ul><a class="edit-page" href="https://github.com/JuliaComputing/JuliaDB.jl/tree/396ffd493016c93fd16cd5c69f2364b031c84d7c/docs/src/index.md"><span class="fa"></span> Edit on GitHub</a></nav><hr/></header><h1><a class="nav-anchor" id="JuliaDB.jl-1" href="#JuliaDB.jl-1">JuliaDB.jl</a></h1><h2><a class="nav-anchor" id="Overview-1" href="#Overview-1">Overview</a></h2><p>JuliaDB is a package for working with large persistent data sets. Given a set of CSV files, it builds and saves an index that allows the data to be accessed efficiently in the future. It also supports an &quot;ingest&quot; mode that converts data to a more efficient binary format.</p><p>JuliaDB is based on <a href="https://github.com/JuliaParallel/Dagger.jl">Dagger</a> and <a href="https://github.com/JuliaComputing/IndexedTables.jl">IndexedTables</a>, providing a distributed-array-like data model. Over time, we hope to expand this to include dense arrays and other Julia array types.</p><h2><a class="nav-anchor" id="Installation-1" href="#Installation-1">Installation</a></h2><pre><code class="language-julia">Pkg.clone(&quot;https://github.com/JuliaComputing/JuliaDB.jl.git&quot;)</code></pre><h2><a class="nav-anchor" id="Loading-data-1" href="#Loading-data-1">Loading data</a></h2><p>To use JuliaDB you may start Julia with a few worker processes, for example, <code>julia -p 4</code>. Let&#39;s load some sample CSV files that are in JuliaDB&#39;s test folder:</p><pre><code class="language-julia">julia&gt; using JuliaDB
+
+julia&gt; # first use `glob` to list all the files
+       files = glob(&quot;*.csv&quot;, Pkg.dir(&quot;JuliaDB&quot;, &quot;test&quot;, &quot;fxsample&quot;))
+10-element Array{String,1}:
+ &quot;/home/shashi/.julia/v0.5/JuliaDB/test/fxsample/AUDNZD-2010-03.csv&quot;
+ &quot;/home/shashi/.julia/v0.5/JuliaDB/test/fxsample/AUDUSD-2009-09.csv&quot;
+ &quot;/home/shashi/.julia/v0.5/JuliaDB/test/fxsample/AUDUSD-2010-08.csv&quot;
+ &quot;/home/shashi/.julia/v0.5/JuliaDB/test/fxsample/CADJPY-2009-11.csv&quot;
+ &quot;/home/shashi/.julia/v0.5/JuliaDB/test/fxsample/EURCHF-2011-07.csv&quot;
+ &quot;/home/shashi/.julia/v0.5/JuliaDB/test/fxsample/EURGBP-2016-03.csv&quot;
+ &quot;/home/shashi/.julia/v0.5/JuliaDB/test/fxsample/USDCHF-2011-07.csv&quot;
+ &quot;/home/shashi/.julia/v0.5/JuliaDB/test/fxsample/USDCHF-2016-03.csv&quot;
+ &quot;/home/shashi/.julia/v0.5/JuliaDB/test/fxsample/USDJPY-2011-03.csv&quot;
+ &quot;/home/shashi/.julia/v0.5/JuliaDB/test/fxsample/USDJPY-2012-08.csv&quot;
+
+Metadata for 0 / 10 files can be loaded from cache.
+Reading 10 csv files totalling 6.605 KB...
+julia&gt; # loadfiles can load the files in parallel
+       fxdata = loadfiles(files, header_exists=false,
+                          colnames=[&quot;pair&quot;, &quot;timestamp&quot;, &quot;bid&quot;, &quot;call&quot;],
+                          indexcols=[1, 2])
+DTable with 150 rows in 10 chunks:
+
+pair       timestamp               │ bid      call
+───────────────────────────────────┼─────────────────
+&quot;AUD/NZD&quot;  2010-03-03T20:27:10.715 │ 1.28607  1.28668
+&quot;AUD/NZD&quot;  2010-03-03T20:27:10.718 │ 1.28607  1.28668
+&quot;AUD/NZD&quot;  2010-03-03T20:27:10.966 │ 1.28607  1.28668
+&quot;AUD/NZD&quot;  2010-03-03T20:27:10.975 │ 1.28607  1.28668
+&quot;AUD/NZD&quot;  2010-03-03T20:27:11.217 │ 1.28607  1.28668
+...</code></pre><p>Here we specified that the files don&#39;t have a header line (<code>header_exists</code>), specified the column names (<code>colnames</code>) manually, and also specified that <code>loadfiles</code> should use columns 1 and 2 as the index for the data (<code>indexcols</code>). The index columns will be used to sort the data for efficient queries. See <a href="apireference.html#JuliaDB.loadfiles">the API reference for <code>loadfiles</code></a> for all available options.</p><p>Notice that the output says <code>150 rows in 10 chunks</code>. <code>loadfiles</code> creates a distributed table (<code>DTable</code>) with as many chunks as the input files. The loaded chunks are distributed across available worker processes. <code>loadfiles</code> will also save metadata about the contents of the files in a directory named <code>.juliadb_cache</code> under the current working directory. This means, the next time the files are loaded, it will not need to actually parse them to know what&#39;s in them. However the files will be parsed once an operation requires the data in it.</p><p>Another way to load data into JuliaDB is using <a href="apireference.html#JuliaDB.ingest"><code>ingest</code></a>. <code>ingest</code> reads and saves the data in an efficient memory-mappable storage format for faster re-reading. You can also add new files to an existing dataset using <a href="apireference.html#JuliaDB.ingest!"><code>ingest!</code></a>.</p><h2><a class="nav-anchor" id="Indexing-1" href="#Indexing-1">Indexing</a></h2><p>Most lookup and filtering operations on <code>DTable</code> are done via indexing. Our <code>fxdata</code> object behaves like a 2-d array, accepting two indices:</p><p>You can get a specific value by indexing it by the exact index:</p><pre><code class="language-julia">julia&gt; fxdata[&quot;AUD/NZD&quot;, DateTime(&quot;2010-03-03T20:27:10.966&quot;)]
+(bid = 1.28607, call = 1.28668)</code></pre><p>You can also get a subset of the <code>DTable</code> by indexing with a range of index values:</p><pre><code class="language-julia">julia&gt; fxdata[[&quot;EUR/GBP&quot;, &quot;USD/JPY&quot;], :]
+DTable with 3 chunks:
+
+pair       timestamp               │ bid      call
+───────────────────────────────────┼─────────────────
+&quot;EUR/GBP&quot;  2016-03-15T12:38:58.043 │ 0.78427  0.78433
+&quot;EUR/GBP&quot;  2016-03-15T12:38:58.231 │ 0.78429  0.78435
+&quot;EUR/GBP&quot;  2016-03-15T12:38:58.344 │ 0.78429  0.78433
+&quot;EUR/GBP&quot;  2016-03-15T12:38:58.387 │ 0.78427  0.78433
+&quot;EUR/GBP&quot;  2016-03-15T12:38:58.459 │ 0.78427  0.78435
+...</code></pre><h2><a class="nav-anchor" id="Permuting-dimensions-1" href="#Permuting-dimensions-1">Permuting dimensions</a></h2><p>As with other multi-dimensional arrays, dimensions can be permuted to change the sort order.</p><p>With <code>DTable</code> the interpretation of this operation is especially natural: simply imagine passing the index columns to the constructor in a different order, and repeating the sorting process:</p><pre><code class="language-julia">julia&gt; permutedims(fxdata, [2, 1])
+DTable with 10 chunks:
+
+timestamp                pair      │ bid      call
+───────────────────────────────────┼─────────────────
+2009-09-21T07:29:25.416  &quot;AUD/USD&quot; │ 0.86299  0.86308
+2009-09-21T07:29:25.439  &quot;AUD/USD&quot; │ 0.86299  0.86315
+2009-09-21T07:29:25.457  &quot;AUD/USD&quot; │ 0.86297  0.86315
+2009-09-21T07:29:25.459  &quot;AUD/USD&quot; │ 0.86297  0.8631
+2009-09-21T07:29:25.533  &quot;AUD/USD&quot; │ 0.86297  0.86309
+...</code></pre><p>Now the data is sorted first by date. In some cases such dimension permutations are needed for performance. The leftmost column is esssentially the primary key –- indexing is fastest in this dimension.</p><h2><a class="nav-anchor" id="Select-and-aggregate-1" href="#Select-and-aggregate-1">Select and aggregate</a></h2><p>In some cases one wants to consider a subset of dimensions, for example when producing a simplified summary of data. This can be done by passing dimension (column) numbers (or names, as symbols) to <code>select</code>:</p><pre><code class="language-julia">julia&gt; select(fxdata, 2)
+DTable with 10 chunks:
+
+timestamp               │ bid      call
+────────────────────────┼─────────────────
+2010-03-03T20:27:10.715 │ 1.28607  1.28668
+2010-03-03T20:27:10.718 │ 1.28607  1.28668
+2010-03-03T20:27:10.966 │ 1.28607  1.28668
+2010-03-03T20:27:10.975 │ 1.28607  1.28668
+2010-03-03T20:27:11.217 │ 1.28607  1.28668
+...</code></pre><p>In this case, the result has multiple values for some indices, and so does not fully behave like a normal array anymore. Operations that might leave the array in such a state accept the keyword argument <code>agg</code>, a function to use to combine all values associated with the same indices:</p><pre><code class="language-julia">julia&gt; select(fxdata, 2, agg=(x,y) -&gt; x)
+DTable with 10 chunks:
+
+timestamp               │ bid      call
+────────────────────────┼─────────────────
+2010-03-03T20:27:10.715 │ 1.28607  1.28668
+2010-03-03T20:27:10.718 │ 1.28607  1.28668
+2010-03-03T20:27:10.966 │ 1.28607  1.28668
+2010-03-03T20:27:10.975 │ 1.28607  1.28668
+2010-03-03T20:27:11.217 │ 1.28607  1.28668
+...</code></pre><p><code>select</code> also supports filtering columns with arbitrary predicates, by passing <code>column=&gt;predicate</code> pairs:</p><pre><code class="language-julia">julia&gt; select(fxdata, 2=&gt;Dates.isfriday)
+DTable with 10 chunks:
+
+pair       timestamp               │ bid      call
+───────────────────────────────────┼─────────────────
+&quot;EUR/CHF&quot;  2011-07-15T06:16:20.534 │ 1.15498  1.15526
+&quot;EUR/CHF&quot;  2011-07-15T06:16:20.707 │ 1.15498  1.15527
+&quot;EUR/CHF&quot;  2011-07-15T06:16:20.806 │ 1.15498  1.15526
+&quot;EUR/CHF&quot;  2011-07-15T06:16:20.807 │ 1.15506  1.15529
+&quot;EUR/CHF&quot;  2011-07-15T06:16:21.006 │ 1.15498  1.15529
+...</code></pre><h2><a class="nav-anchor" id="Converting-dimensions-1" href="#Converting-dimensions-1">Converting dimensions</a></h2><p>A location in the coordinate space of an array often has multiple possible descriptions. This is especially common when describing data at different levels of detail. For example, a point in time can be expressed at the level of seconds, minutes, or hours. In our toy temperature dataset, we might want to look at monthly instead of daily highs.</p><p>This can be accomplished using the <code>convertdim</code> function. It accepts a DTable, a dimension number to convert, a function or dictionary to apply to indices in that dimension, and an aggregation function (the aggregation function is needed in case the mapping is many-to-one). The following call therefore gives the first entry of each month:</p><pre><code class="language-julia">julia&gt; convertdim(fxdata, 2, Dates.month, agg=(x,y)-&gt;x)
+DTable with 10 chunks:
+
+              │ bid      call
+──────────────┼─────────────────
+&quot;AUD/NZD&quot;  3  │ 1.28607  1.28668
+&quot;AUD/USD&quot;  8  │ 0.91268  0.91276
+&quot;AUD/USD&quot;  9  │ 0.86299  0.86308
+&quot;CAD/JPY&quot;  11 │ 84.742   84.76
+&quot;EUR/CHF&quot;  7  │ 1.15498  1.15526
+...</code></pre><p>Read about more oprerations in the <a href="apireference.html">API reference</a> section.</p><footer><hr/><a class="next" href="apireference.html"><span class="direction">Next</span><span class="title">API Reference</span></a></footer></article></body></html>
